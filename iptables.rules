@@ -1,0 +1,48 @@
+# Egresser iptable rules, allowing outbound firewall rules to
+# be enumerated. 
+
+# Copyright (C) 2013  Cyberis Limited
+
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+# Works with both iptables and ip6tables (although you will need a 3.7+ kernel and iptables version 1.4.17+ for IPv6 nat)
+
+*nat
+:PREROUTING ACCEPT [0:0]
+:INPUT ACCEPT [0:0]
+:OUTPUT ACCEPT [0:0]
+:POSTROUTING ACCEPT [0:0]
+# Redirect all traffic to the server listening on port 8080
+-A PREROUTING -i eth0 -p tcp -m tcp --dport 8080 -j ACCEPT
+-A PREROUTING -i eth0 -p tcp -j REDIRECT --to-ports 8080
+COMMIT
+*filter
+:INPUT ACCEPT [0:0]
+:FORWARD ACCEPT [0:0]
+:OUTPUT ACCEPT [0:0]
+:egresser - [0:0]
+:egresser-log - [0:0]
+
+#
+# The below enables logging of Egresser. If there are 20 new connections within one minute, a log entry will be made. 
+# No further log entries will be made unless 60 seconds has passed since the last received packet from the scanner
+#
+-A INPUT -p tcp -m state --state NEW -j egresser
+-A egresser -m recent --set --name egresser --rsource
+-A egresser -m recent --update --seconds 60 --hitcount 20 --name egresser --rsource -j egresser-log
+-A egresser-log -m recent --update --seconds 60 --name egresser-log --rsource -j ACCEPT
+-A egresser-log -m recent --set --name egresser-log --rsource
+-A egresser-log -j LOG --log-prefix "EGRESSER: "
+COMMIT
+
