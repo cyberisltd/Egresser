@@ -25,7 +25,7 @@ use Thread::Queue ;
 use IO::Socket::IP;
 use Getopt::Long;
 
-my $server = "egresser.ipv6labs.cyberis.co.uk";
+my $server = "egresser.labs.cyberis.co.uk";
 my $server4 = "egresser.ipv4labs.cyberis.co.uk";
 my $server6 = "egresser.ipv6labs.cyberis.co.uk";
 my @ports = (1..1024); # The port range to scan
