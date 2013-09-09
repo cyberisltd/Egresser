@@ -99,9 +99,12 @@ sub doRequest {
 		if ($@ =~ m/timeout/) {
                 	$result->{'rcode'} = 3;
         	}
+		if ($@ =~ m/unreachable/) {
+                	$result->{'rcode'} = 4;
+        	}
   	}
 
-#	die "$@" if ! defined;
+#	die "$@" if ! defined $socket;
 
   	$finished_queue->enqueue($tid);
 
@@ -110,7 +113,7 @@ sub doRequest {
 } ;
 
 # Process the results
-my (@openports, @closedports, @timeoutports, @errorports,$ip,$realsrcport,$reportedsrcport);
+my (@openports, @closedports, @timeoutports, @errorports,@unreachableports,$ip,$realsrcport,$reportedsrcport);
 
 foreach (@results) {
 	my $result = $_;
@@ -135,6 +138,10 @@ foreach (@results) {
         }
         if ($rcode == 3) {
                 push @timeoutports, $result->{'port'};
+		next;
+        }
+        if ($rcode == 4) {
+                push @unreachableports, $result->{'port'};
         }
 }
 
@@ -143,18 +150,22 @@ foreach (@results) {
 @errorports = sort { $a <=> $b } @errorports;
 @closedports = sort { $a <=> $b } @closedports;
 @timeoutports = sort { $a <=> $b } @timeoutports;
+@unreachableports = sort { $a <=> $b } @unreachableports;
 
 print "\n\nEgresser found:\n\n";
 print "\tOpen ports:\t".@openports."\n";
 print "\tClosed ports:\t".@closedports."\n\n";
 
-if (@timeoutports || @errorports) {
+if (@timeoutports || @errorports || @unreachableports) {
 	print "The following errors were encountered (possible indicatation of egress filtering):\n\n";
 	if (@timeoutports) {
 		print "\tTimeouts:\t\t".@timeoutports."\n";
 	}
-	else {
+	if (@errorports) {
 		print "\tInvalid data returned:\t".@errorports."\n";
+	}
+	if (@unreachableports) {
+		print "\tPort/network unreachable:\t".@unreachableports."\n";
 	}
 }
 
@@ -170,6 +181,9 @@ if ((@closedports <= 10 && @closedports > 0) || (@closedports > 0 && $verbose)) 
 if ((@timeoutports <= 10 && @timeoutports > 0) || (@timeoutports > 0 && $verbose)) {
 	print "\nThe following ports timed-out: " . join(',', @timeoutports)."\n";
 }
+if ((@unreachableports <= 10 && @unreachableports > 0) || (@unreachableports > 0 && $verbose)) {
+	print "\nThe following ports were unreachable: " . join(',', @unreachableports)."\n";
+}
 if ((@errorports <= 10 && @errorports > 0) || (@errorports > 0 &&$verbose)) {
 	print "\nThe following ports returned invalid data: " . join(',',@errorports)."\n";
 }
@@ -178,12 +192,13 @@ if (defined $ip) {
 	print "\nYour connecting IP address was reported by the server as $ip\n";
 }
 
-if ($realsrcport == $reportedsrcport) {
-	print "\nThe reported source port matches my request - there appears to be no NAT traversal taking place.\n";
-}
-else {
-
-	print "\nThe reported source port is different from my request. Possible IP masquerading (NAT) in use by an intermediary device.\n";
+if (defined($realsrcport)) {
+ 	if ($realsrcport == $reportedsrcport) {
+		print "\nThe reported source port matches my request - there appears to be no NAT traversal taking place.\n";
+	}
+	else {
+		print "\nThe reported source port is different from my request. Possible IP masquerading (NAT) in use by an intermediary device.\n";
+	}
 }
 
 print "\n*** Egresser scan complete. ***\n\n";
